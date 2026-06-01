@@ -1,14 +1,14 @@
 use crate::models::{
     BarLength, DrumType, GenerationOptions, Hit, HitSource, Pattern, SongSection, TrackConfig,
-    STEPS_PER_BAR,
+    ACCENT_LANE_VELOCITY_BOOST, ACCENT_STEP_VELOCITY_BOOST, DEFAULT_NOTE_DURATION_TICKS,
+    FILL_NOTE_DURATION_TICKS, FILL_SUBDIVISION_VELOCITY_REDUCTION, FILL_VELOCITY_OFFSET,
+    FINAL_BEAT_STEPS, GHOST_VELOCITY_OFFSET, MAX_HUMANIZE_TIMING_OFFSET_TICKS,
+    MAX_HUMANIZE_VELOCITY_OFFSET, PHRASE_RESPONSE_VELOCITY_BOOST, PHRASE_START_VELOCITY_BOOST, PPQ,
+    STEPS_PER_BAR, TICKS_PER_STEP, TURNAROUND_VELOCITY_BOOST,
 };
 use crate::patterns::{SourcePatternLibrary, SourceRow};
 use crate::style_rules::{rule_for, should_add, velocity_for};
 use rand::{seq::SliceRandom, Rng};
-
-pub const PPQ: u16 = 480;
-const TICKS_PER_STEP: u32 = PPQ as u32 / 4;
-const NOTE_DURATION: u32 = 60;
 
 pub fn generate_pattern(
     library: &SourcePatternLibrary,
@@ -187,7 +187,7 @@ fn generate_track<R: Rng + ?Sized>(
                     step,
                     track.section,
                     HitSource::Ghost,
-                    -42,
+                    GHOST_VELOCITY_OFFSET,
                     rule.swing_ticks,
                 ));
             }
@@ -264,7 +264,7 @@ fn make_hit(
         track,
         drum_type,
         tick,
-        duration: NOTE_DURATION,
+        duration: DEFAULT_NOTE_DURATION_TICKS,
         velocity,
         source,
     }
@@ -344,7 +344,7 @@ fn add_fill<R: Rng + ?Sized>(
         return;
     }
 
-    for step in [13, 14, 15, 16] {
+    for step in FINAL_BEAT_STEPS {
         if rng.gen_bool(roll_chance.clamp(0.0, 1.0) as f64) {
             hits.push(make_hit(
                 track,
@@ -353,7 +353,7 @@ fn add_fill<R: Rng + ?Sized>(
                 step,
                 section,
                 HitSource::Fill,
-                -8,
+                FILL_VELOCITY_OFFSET,
                 0,
             ));
 
@@ -368,8 +368,9 @@ fn add_fill<R: Rng + ?Sized>(
                     track,
                     drum_type,
                     tick: base + TICKS_PER_STEP / 2,
-                    duration: NOTE_DURATION / 2,
-                    velocity: velocity_for(section, 0).saturating_sub(18),
+                    duration: FILL_NOTE_DURATION_TICKS,
+                    velocity: velocity_for(section, 0)
+                        .saturating_sub(FILL_SUBDIVISION_VELOCITY_REDUCTION),
                     source: HitSource::Fill,
                 });
             }
@@ -411,7 +412,10 @@ fn apply_accents(hits: &mut [Hit]) {
 
     for hit in hits {
         if hit.drum_type != DrumType::Accent && accent_ticks.contains(&hit.tick) {
-            hit.velocity = hit.velocity.saturating_add(18).min(127);
+            hit.velocity = hit
+                .velocity
+                .saturating_add(ACCENT_LANE_VELOCITY_BOOST)
+                .min(127);
         }
     }
 }
@@ -478,11 +482,15 @@ fn phrase_ghost_chance(base_chance: f32, phrase: PhraseRole, options: &Generatio
 }
 
 fn accent_velocity_boost(accent_steps: &[u8], step: u8, phrase: PhraseRole) -> i16 {
-    let step_boost = if accent_steps.contains(&step) { 10 } else { 0 };
+    let step_boost = if accent_steps.contains(&step) {
+        ACCENT_STEP_VELOCITY_BOOST
+    } else {
+        0
+    };
     let phrase_boost = match phrase {
-        PhraseRole::Establish if step == 1 => 8,
-        PhraseRole::Response if matches!(step, 5 | 13) => 5,
-        PhraseRole::Turnaround if step >= 13 => 12,
+        PhraseRole::Establish if step == 1 => PHRASE_START_VELOCITY_BOOST,
+        PhraseRole::Response if matches!(step, 5 | 13) => PHRASE_RESPONSE_VELOCITY_BOOST,
+        PhraseRole::Turnaround if step >= 13 => TURNAROUND_VELOCITY_BOOST,
         _ => 0,
     };
 
@@ -515,8 +523,8 @@ fn apply_humanize<R: Rng + ?Sized>(
     }
 
     let max_tick = bars * STEPS_PER_BAR * TICKS_PER_STEP;
-    let max_offset = (amount * 18.0).round() as i32;
-    let max_velocity_offset = (amount * 12.0).round() as i16;
+    let max_offset = (amount * MAX_HUMANIZE_TIMING_OFFSET_TICKS).round() as i32;
+    let max_velocity_offset = (amount * MAX_HUMANIZE_VELOCITY_OFFSET).round() as i16;
 
     for hit in hits {
         if max_offset > 0 {
@@ -568,8 +576,8 @@ mod tests {
         let locked_hit = Hit {
             track: 0,
             drum_type: DrumType::BassDrum,
-            tick: 120,
-            duration: 60,
+            tick: TICKS_PER_STEP,
+            duration: DEFAULT_NOTE_DURATION_TICKS,
             velocity: 100,
             source: HitSource::StyleRule,
         };
@@ -602,7 +610,7 @@ mod tests {
                 track: 0,
                 drum_type: DrumType::BassDrum,
                 tick: 0,
-                duration: 60,
+                duration: DEFAULT_NOTE_DURATION_TICKS,
                 velocity: 1,
                 source: HitSource::StyleRule,
             },
@@ -610,7 +618,7 @@ mod tests {
                 track: 1,
                 drum_type: DrumType::Snare,
                 tick: 8 * STEPS_PER_BAR * TICKS_PER_STEP - 1,
-                duration: 60,
+                duration: DEFAULT_NOTE_DURATION_TICKS,
                 velocity: 127,
                 source: HitSource::Ghost,
             },
@@ -801,7 +809,12 @@ mod tests {
             BarLength::Eight,
             &options,
         );
-        let expected_ticks = [0, 480, 960, 1440];
+        let expected_ticks = [
+            0,
+            TICKS_PER_STEP * 4,
+            TICKS_PER_STEP * 8,
+            TICKS_PER_STEP * 12,
+        ];
 
         for tick in expected_ticks {
             assert!(pattern

@@ -111,7 +111,10 @@ struct AbsoluteEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Hit, HitSource, Pattern};
+    use crate::models::{
+        Hit, HitSource, DEFAULT_NOTE_DURATION_TICKS, DEFAULT_TEMPO_BPM, FILL_NOTE_DURATION_TICKS,
+        PPQ, TICKS_PER_STEP,
+    };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -128,12 +131,12 @@ mod tests {
     fn exports_parseable_single_track_midi_with_tempo() {
         let pattern = Pattern {
             bars: 8,
-            ppq: 480,
+            ppq: PPQ,
             hits: vec![Hit {
                 track: 0,
                 drum_type: DrumType::BassDrum,
                 tick: 0,
-                duration: 60,
+                duration: DEFAULT_NOTE_DURATION_TICKS,
                 velocity: 100,
                 source: HitSource::StyleRule,
             }],
@@ -144,7 +147,7 @@ mod tests {
             .as_nanos();
         let path = std::env::temp_dir().join(format!("drumviper-test-{unique}.mid"));
 
-        export_midi(&pattern, 120, &path).expect("MIDI export succeeds");
+        export_midi(&pattern, DEFAULT_TEMPO_BPM, &path).expect("MIDI export succeeds");
         let bytes = fs::read(&path).expect("MIDI file can be read");
         let parsed = Smf::parse(&bytes).expect("MIDI file parses");
         let _ = fs::remove_file(&path);
@@ -159,12 +162,12 @@ mod tests {
     fn exports_ghost_notes_with_their_low_velocity_and_timing() {
         let pattern = Pattern {
             bars: 8,
-            ppq: 480,
+            ppq: PPQ,
             hits: vec![Hit {
                 track: 1,
                 drum_type: DrumType::Snare,
-                tick: 240,
-                duration: 45,
+                tick: TICKS_PER_STEP * 2,
+                duration: FILL_NOTE_DURATION_TICKS + TICKS_PER_STEP / 8,
                 velocity: 42,
                 source: HitSource::Ghost,
             }],
@@ -175,7 +178,7 @@ mod tests {
             .as_nanos();
         let path = std::env::temp_dir().join(format!("drumviper-ghost-test-{unique}.mid"));
 
-        export_midi(&pattern, 120, &path).expect("MIDI export succeeds");
+        export_midi(&pattern, DEFAULT_TEMPO_BPM, &path).expect("MIDI export succeeds");
         let bytes = fs::read(&path).expect("MIDI file can be read");
         let parsed = Smf::parse(&bytes).expect("MIDI file parses");
         let _ = fs::remove_file(&path);
@@ -195,7 +198,7 @@ mod tests {
             }
         });
 
-        assert_eq!(ghost_note_on, Some((240, 9, 42)));
+        assert_eq!(ghost_note_on, Some((TICKS_PER_STEP * 2, 9, 42)));
     }
 
     #[test]

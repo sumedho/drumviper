@@ -1,21 +1,23 @@
 use crate::app::Message;
 use crate::models::{HitSource, Pattern, TrackConfig, STEPS_PER_BAR, TRACK_COUNT};
+use crate::ui::constants::{
+    PATTERN_DEFAULT_MARKER_HEIGHT, PATTERN_DEFAULT_MARKER_WIDTH_FACTOR, PATTERN_FILL_MARKER_HEIGHT,
+    PATTERN_FILL_MARKER_WIDTH_FACTOR, PATTERN_GHOST_MARKER_HEIGHT,
+    PATTERN_GHOST_MARKER_WIDTH_FACTOR, PATTERN_GRID_PADDING, PATTERN_LABEL_GUTTER,
+    PATTERN_LABEL_INSET, PATTERN_MAX_ACCENT_MARKER_WIDTH, PATTERN_MAX_MARKER_WIDTH,
+    PATTERN_MAX_SMALL_MARKER_WIDTH, PATTERN_MIN_ACCENT_MARKER_WIDTH, PATTERN_MIN_GRID_HEIGHT,
+    PATTERN_MIN_MARKER_WIDTH, PATTERN_PANEL_RADIUS, PATTERN_ROW_HEIGHT, PATTERN_TOP_RULER,
+};
 use iced::alignment;
 use iced::border;
 use iced::mouse;
 use iced::widget::canvas::{self, Canvas, Path, Stroke, Text};
 use iced::{Color, Element, Length, Pixels, Point, Rectangle, Renderer, Size, Theme};
 
-const LABEL_GUTTER: f32 = 132.0;
-const TOP_RULER: f32 = 38.0;
-const ROW_HEIGHT: f32 = 38.0;
-const GRID_PADDING: f32 = 12.0;
-const MIN_GRID_HEIGHT: f32 = TOP_RULER + ROW_HEIGHT * TRACK_COUNT as f32 + GRID_PADDING * 2.0;
-
 pub fn view<'a>(tracks: &'a [TrackConfig], pattern: &'a Pattern) -> Element<'a, Message> {
     Canvas::new(PatternGrid { tracks, pattern })
         .width(Length::Fill)
-        .height(Length::Fixed(MIN_GRID_HEIGHT))
+        .height(Length::Fixed(PATTERN_MIN_GRID_HEIGHT))
         .into()
 }
 
@@ -62,10 +64,10 @@ struct GridLayout {
 impl GridLayout {
     fn new(size: Size, bars: u32) -> Self {
         let steps = bars * STEPS_PER_BAR;
-        let grid_left = LABEL_GUTTER;
-        let grid_top = TOP_RULER;
-        let grid_width = (size.width - grid_left - GRID_PADDING).max(steps as f32);
-        let grid_height = ROW_HEIGHT * TRACK_COUNT as f32;
+        let grid_left = PATTERN_LABEL_GUTTER;
+        let grid_top = PATTERN_TOP_RULER;
+        let grid_width = (size.width - grid_left - PATTERN_GRID_PADDING).max(steps as f32);
+        let grid_height = PATTERN_ROW_HEIGHT * TRACK_COUNT as f32;
 
         Self {
             grid_left,
@@ -74,7 +76,7 @@ impl GridLayout {
             grid_height,
             steps,
             cell_width: grid_width / steps.max(1) as f32,
-            row_height: ROW_HEIGHT,
+            row_height: PATTERN_ROW_HEIGHT,
         }
     }
 
@@ -96,9 +98,12 @@ fn draw_background(frame: &mut canvas::Frame, size: Size) {
     frame.fill_rectangle(Point::ORIGIN, size, color(0x12, 0x16, 0x1f, 1.0));
 
     let panel = Path::rounded_rectangle(
-        Point::new(GRID_PADDING / 2.0, GRID_PADDING / 2.0),
-        Size::new(size.width - GRID_PADDING, size.height - GRID_PADDING),
-        border::Radius::from(7.0),
+        Point::new(PATTERN_GRID_PADDING / 2.0, PATTERN_GRID_PADDING / 2.0),
+        Size::new(
+            size.width - PATTERN_GRID_PADDING,
+            size.height - PATTERN_GRID_PADDING,
+        ),
+        border::Radius::from(PATTERN_PANEL_RADIUS),
     );
     frame.fill(&panel, color(0x18, 0x1e, 0x29, 1.0));
 }
@@ -113,9 +118,9 @@ fn draw_track_rows(frame: &mut canvas::Frame, layout: &GridLayout, tracks: &[Tra
         };
 
         frame.fill_rectangle(
-            Point::new(GRID_PADDING, y),
+            Point::new(PATTERN_GRID_PADDING, y),
             Size::new(
-                layout.grid_width + LABEL_GUTTER - GRID_PADDING,
+                layout.grid_width + PATTERN_LABEL_GUTTER - PATTERN_GRID_PADDING,
                 layout.row_height,
             ),
             row_color,
@@ -127,7 +132,10 @@ fn draw_track_rows(frame: &mut canvas::Frame, layout: &GridLayout, tracks: &[Tra
             .unwrap_or_else(|| format!("Track {}", track_index + 1));
         frame.fill_text(Text {
             content: label,
-            position: Point::new(GRID_PADDING + 12.0, y + layout.row_height / 2.0),
+            position: Point::new(
+                PATTERN_GRID_PADDING + PATTERN_LABEL_INSET,
+                y + layout.row_height / 2.0,
+            ),
             color: color(0xd6, 0xde, 0xea, 0.92),
             size: Pixels(13.0),
             vertical_alignment: alignment::Vertical::Center,
@@ -135,7 +143,7 @@ fn draw_track_rows(frame: &mut canvas::Frame, layout: &GridLayout, tracks: &[Tra
         });
 
         let line = Path::line(
-            Point::new(GRID_PADDING, y + layout.row_height),
+            Point::new(PATTERN_GRID_PADDING, y + layout.row_height),
             Point::new(layout.grid_left + layout.grid_width, y + layout.row_height),
         );
         frame.stroke(
@@ -201,14 +209,19 @@ fn draw_hits(frame: &mut canvas::Frame, layout: &GridLayout, pattern: &Pattern) 
         let y = layout.y_for_track(hit.track);
         let intensity = (f32::from(hit.velocity) / 127.0).clamp(0.25, 1.0);
         let marker_width = match hit.source {
-            HitSource::Ghost => (layout.cell_width * 0.42).clamp(2.0, 8.0),
-            HitSource::Fill => (layout.cell_width * 0.74).clamp(2.5, 12.0),
-            _ => (layout.cell_width * 0.68).clamp(2.0, 11.0),
+            HitSource::Ghost => (layout.cell_width * PATTERN_GHOST_MARKER_WIDTH_FACTOR)
+                .clamp(PATTERN_MIN_MARKER_WIDTH, PATTERN_MAX_SMALL_MARKER_WIDTH),
+            HitSource::Fill => (layout.cell_width * PATTERN_FILL_MARKER_WIDTH_FACTOR).clamp(
+                PATTERN_MIN_ACCENT_MARKER_WIDTH,
+                PATTERN_MAX_ACCENT_MARKER_WIDTH,
+            ),
+            _ => (layout.cell_width * PATTERN_DEFAULT_MARKER_WIDTH_FACTOR)
+                .clamp(PATTERN_MIN_MARKER_WIDTH, PATTERN_MAX_MARKER_WIDTH),
         };
         let marker_height = match hit.source {
-            HitSource::Ghost => 8.0,
-            HitSource::Fill => 18.0,
-            _ => 15.0,
+            HitSource::Ghost => PATTERN_GHOST_MARKER_HEIGHT,
+            HitSource::Fill => PATTERN_FILL_MARKER_HEIGHT,
+            _ => PATTERN_DEFAULT_MARKER_HEIGHT,
         };
 
         let marker = Path::rounded_rectangle(
@@ -239,6 +252,7 @@ fn color(red: u8, green: u8, blue: u8, alpha: f32) -> Color {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{PPQ, TICKS_PER_STEP};
 
     #[test]
     fn layout_fits_all_steps_for_sixteen_bars() {
@@ -246,15 +260,15 @@ mod tests {
 
         assert_eq!(layout.steps, 256);
         assert!(layout.cell_width > 0.0);
-        assert!(layout.x_for_step(256) <= 1_200.0 - GRID_PADDING + 0.01);
+        assert!(layout.x_for_step(256) <= 1_200.0 - PATTERN_GRID_PADDING + 0.01);
     }
 
     #[test]
     fn tick_position_maps_to_sixteenth_steps() {
         let layout = GridLayout::new(Size::new(1_000.0, 400.0), 8);
-        let pattern = Pattern::empty(8, 480);
+        let pattern = Pattern::empty(8, PPQ);
         let step_four_x = layout.x_for_step(4);
 
-        assert!((layout.x_for_tick(&pattern, 480) - step_four_x).abs() < 0.01);
+        assert!((layout.x_for_tick(&pattern, TICKS_PER_STEP * 4) - step_four_x).abs() < 0.01);
     }
 }

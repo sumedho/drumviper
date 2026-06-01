@@ -1,7 +1,8 @@
 use crate::generator;
 use crate::midi;
 use crate::models::{
-    BarLength, DrumType, GenerationOptions, Pattern, SongSection, Style, TrackConfig, TRACK_COUNT,
+    BarLength, DrumType, GenerationOptions, Pattern, SongSection, Style, TrackConfig,
+    DEFAULT_TEMPO_BPM, TRACK_COUNT,
 };
 use crate::patterns::SourcePatternLibrary;
 use crate::ui;
@@ -65,7 +66,7 @@ impl DrumViper {
                 tracks,
                 pattern,
                 length,
-                tempo: 120,
+                tempo: DEFAULT_TEMPO_BPM,
                 global_style: Style::SourceLibrary,
                 global_section: SongSection::Verse,
                 generation_options,

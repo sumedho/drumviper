@@ -1,7 +1,28 @@
 use std::fmt;
 
-pub const STEPS_PER_BAR: u32 = 16;
+pub const PPQ: u16 = 480;
+pub const BEATS_PER_BAR: u32 = 4;
+pub const STEPS_PER_BEAT: u32 = 4;
+pub const STEPS_PER_BAR: u32 = BEATS_PER_BAR * STEPS_PER_BEAT;
+pub const TICKS_PER_STEP: u32 = PPQ as u32 / STEPS_PER_BEAT;
+pub const DEFAULT_NOTE_DURATION_TICKS: u32 = TICKS_PER_STEP / 2;
+pub const FILL_NOTE_DURATION_TICKS: u32 = DEFAULT_NOTE_DURATION_TICKS / 2;
+pub const FINAL_BEAT_STEPS: [u8; 4] = [13, 14, 15, 16];
 pub const TRACK_COUNT: usize = 8;
+
+pub const GHOST_VELOCITY_OFFSET: i16 = -42;
+pub const FILL_VELOCITY_OFFSET: i16 = -8;
+pub const FILL_SUBDIVISION_VELOCITY_REDUCTION: u8 = 18;
+pub const ACCENT_LANE_VELOCITY_BOOST: u8 = 18;
+pub const ACCENT_STEP_VELOCITY_BOOST: i16 = 10;
+pub const PHRASE_START_VELOCITY_BOOST: i16 = 8;
+pub const PHRASE_RESPONSE_VELOCITY_BOOST: i16 = 5;
+pub const TURNAROUND_VELOCITY_BOOST: i16 = 12;
+pub const MAX_HUMANIZE_TIMING_OFFSET_TICKS: f32 = 18.0;
+pub const MAX_HUMANIZE_VELOCITY_OFFSET: f32 = 12.0;
+pub const DEFAULT_TEMPO_BPM: u16 = 120;
+pub const MIN_TEMPO_BPM: u16 = 60;
+pub const MAX_TEMPO_BPM: u16 = 180;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BarLength {
@@ -327,6 +348,13 @@ mod tests {
             .density_label(),
             "Busy"
         );
+    }
+
+    #[test]
+    fn timing_constants_are_internally_consistent() {
+        assert_eq!(STEPS_PER_BAR, BEATS_PER_BAR * STEPS_PER_BEAT);
+        assert_eq!(TICKS_PER_STEP, u32::from(PPQ) / STEPS_PER_BEAT);
+        assert!(DEFAULT_NOTE_DURATION_TICKS < TICKS_PER_STEP);
     }
 }
 
