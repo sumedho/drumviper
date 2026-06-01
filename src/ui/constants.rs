@@ -1,6 +1,6 @@
 use crate::models::TRACK_COUNT;
 
-pub const TRACK_SIDEBAR_WIDTH: f32 = 340.0;
+pub const TRACK_SIDEBAR_WIDTH: f32 = 420.0;
 
 pub const PATTERN_LABEL_GUTTER: f32 = 132.0;
 pub const PATTERN_TOP_RULER: f32 = 38.0;

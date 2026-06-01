@@ -10,17 +10,36 @@ use iced::{Alignment, Element, Length};
 pub fn view<'a>(
     tracks: &'a [TrackConfig],
     library: &'a SourcePatternLibrary,
+    compact_tracks: bool,
 ) -> Element<'a, Message> {
-    let mut controls = column![text("Tracks").size(24)].spacing(12).padding(14);
+    let mut controls = column![sidebar_header(compact_tracks)]
+        .spacing(12)
+        .padding(14);
 
     for (index, track) in tracks.iter().enumerate() {
-        controls = controls.push(track_controls(index, track, library));
+        let track_control = if compact_tracks {
+            compact_track_controls(index, track)
+        } else {
+            track_controls(index, track, library)
+        };
+        controls = controls.push(track_control);
     }
 
     container(scrollable(controls))
         .width(Length::Fixed(TRACK_SIDEBAR_WIDTH))
         .height(Length::Fill)
         .into()
+}
+
+fn sidebar_header(compact_tracks: bool) -> Element<'static, Message> {
+    row![
+        text("Tracks").size(24),
+        Space::with_width(Length::Fill),
+        checkbox("Compact", compact_tracks).on_toggle(Message::CompactTracksChanged)
+    ]
+    .spacing(10)
+    .align_y(Alignment::Center)
+    .into()
 }
 
 fn track_controls<'a>(
@@ -75,6 +94,22 @@ fn track_controls<'a>(
     .spacing(8);
 
     container(content).padding(10).width(Length::Fill).into()
+}
+
+fn compact_track_controls(index: usize, track: &TrackConfig) -> Element<'_, Message> {
+    let content = row![
+        checkbox(format!("{}", index + 1), track.enabled)
+            .on_toggle(move |enabled| Message::TrackEnabledChanged(index, enabled)),
+        text(track.drum_type.to_string()).width(Length::Fill),
+        checkbox("Lock", track.locked)
+            .on_toggle(move |locked| Message::TrackLockedChanged(index, locked)),
+        text(format!("{}%", track.probability)).width(Length::Fixed(42.0)),
+        button("Randomize").on_press(Message::RandomizeTrack(index))
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center);
+
+    container(content).padding(8).width(Length::Fill).into()
 }
 
 fn field<'a>(label: &'static str, control: Element<'a, Message>) -> Element<'a, Message> {

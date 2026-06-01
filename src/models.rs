@@ -23,6 +23,12 @@ pub const MAX_HUMANIZE_VELOCITY_OFFSET: f32 = 12.0;
 pub const DEFAULT_TEMPO_BPM: u16 = 120;
 pub const MIN_TEMPO_BPM: u16 = 60;
 pub const MAX_TEMPO_BPM: u16 = 180;
+pub const MICROTIMING_SMALL_OFFSET_TICKS: i32 = 6;
+pub const MICROTIMING_MEDIUM_OFFSET_TICKS: i32 = 12;
+pub const MICROTIMING_LARGE_OFFSET_TICKS: i32 = 24;
+pub const MICROTIMING_SHUFFLE_OFFSET_TICKS: i32 = 18;
+pub const MICROTIMING_BROKEN_OFFSET_TICKS: i32 = 14;
+pub const MICROTIMING_ONE_DROP_OFFSET_TICKS: i32 = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BarLength {
@@ -175,6 +181,31 @@ pub enum SongSection {
     Verse,
     Build,
     HighEnergy,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MicrotimingPreset {
+    Straight,
+    Shuffle,
+    LaidBack,
+    Push,
+    Skank,
+    OneDrop,
+    Broken,
+}
+
+#[allow(dead_code)]
+impl MicrotimingPreset {
+    pub const ALL: [Self; 7] = [
+        Self::Straight,
+        Self::Shuffle,
+        Self::LaidBack,
+        Self::Push,
+        Self::Skank,
+        Self::OneDrop,
+        Self::Broken,
+    ];
 }
 
 impl SongSection {

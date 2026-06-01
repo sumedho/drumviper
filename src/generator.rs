@@ -1,3 +1,4 @@
+use crate::microtiming;
 use crate::models::{
     BarLength, DrumType, GenerationOptions, Hit, HitSource, Pattern, SongSection, TrackConfig,
     ACCENT_LANE_VELOCITY_BOOST, ACCENT_STEP_VELOCITY_BOOST, DEFAULT_NOTE_DURATION_TICKS,
@@ -141,8 +142,6 @@ fn generate_track<R: Rng + ?Sized>(
     rule.density *= options.density_factor() * track_amount;
     rule.ghost_chance *= options.complexity_factor() * track_amount;
     rule.roll_chance *= options.complexity_factor() * options.fill_factor() * track_amount;
-    rule.swing_ticks = (rule.swing_ticks as f32 * options.groove_factor()).round() as i32;
-
     let mut hits = Vec::new();
     let source_rows = pick_source_rows(library, track.drum_type, rule.preferred_sections, rng);
     let source_keep_chance = source_keep_chance(options);
@@ -173,7 +172,8 @@ fn generate_track<R: Rng + ?Sized>(
                     track.section,
                     source,
                     accent_velocity_boost(rule.accent_steps, step, phrase),
-                    rule.swing_ticks,
+                    microtiming::offset_for(rule.microtiming, step, track.drum_type, options),
+                    bars,
                 ));
             }
 
@@ -188,7 +188,8 @@ fn generate_track<R: Rng + ?Sized>(
                     track.section,
                     HitSource::Ghost,
                     GHOST_VELOCITY_OFFSET,
-                    rule.swing_ticks,
+                    microtiming::offset_for(rule.microtiming, step, track.drum_type, options),
+                    bars,
                 ));
             }
         }
@@ -199,6 +200,7 @@ fn generate_track<R: Rng + ?Sized>(
                 track_index,
                 track.drum_type,
                 bar,
+                bars,
                 track.section,
                 rng,
                 rule.roll_chance,
@@ -243,14 +245,12 @@ fn make_hit(
     section: SongSection,
     source: HitSource,
     velocity_offset: i16,
-    swing_ticks: i32,
+    microtiming_offset: i32,
+    bars: u32,
 ) -> Hit {
     let step_index = u32::from(step.saturating_sub(1));
-    let mut tick = bar * STEPS_PER_BAR * TICKS_PER_STEP + step_index * TICKS_PER_STEP;
-
-    if step % 2 == 0 && swing_ticks > 0 {
-        tick = tick.saturating_add(swing_ticks as u32);
-    }
+    let base_tick = bar * STEPS_PER_BAR * TICKS_PER_STEP + step_index * TICKS_PER_STEP;
+    let tick = microtiming::apply_offset(base_tick, microtiming_offset, bars);
 
     let source_boost = if source == HitSource::SourcePattern {
         4
@@ -325,6 +325,7 @@ fn add_fill<R: Rng + ?Sized>(
     track: usize,
     drum_type: DrumType,
     bar: u32,
+    bars: u32,
     section: SongSection,
     rng: &mut R,
     roll_chance: f32,
@@ -355,6 +356,7 @@ fn add_fill<R: Rng + ?Sized>(
                 HitSource::Fill,
                 FILL_VELOCITY_OFFSET,
                 0,
+                bars,
             ));
 
             if matches!(

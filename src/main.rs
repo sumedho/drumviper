@@ -1,5 +1,6 @@
 mod app;
 mod generator;
+mod microtiming;
 mod midi;
 mod models;
 mod patterns;

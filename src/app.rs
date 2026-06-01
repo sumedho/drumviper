@@ -27,6 +27,7 @@ pub enum Message {
     HumanizeChanged(u8),
     GlobalStyleChanged(Style),
     GlobalSectionChanged(SongSection),
+    CompactTracksChanged(bool),
     ExportMidi,
 }
 
@@ -39,6 +40,7 @@ pub struct DrumViper {
     global_style: Style,
     global_section: SongSection,
     generation_options: GenerationOptions,
+    compact_tracks: bool,
     status: String,
 }
 
@@ -70,6 +72,7 @@ impl DrumViper {
                 global_style: Style::SourceLibrary,
                 global_section: SongSection::Verse,
                 generation_options,
+                compact_tracks: false,
                 status,
             },
             Task::none(),
@@ -167,6 +170,9 @@ impl DrumViper {
             Message::GlobalSectionChanged(section) => {
                 self.global_section = section;
             }
+            Message::CompactTracksChanged(compact_tracks) => {
+                self.compact_tracks = compact_tracks;
+            }
             Message::ExportMidi => {
                 self.export_midi();
             }
@@ -184,6 +190,7 @@ impl DrumViper {
             self.global_style,
             self.global_section,
             self.generation_options,
+            self.compact_tracks,
             &self.status,
             &self.library,
         )
@@ -299,5 +306,28 @@ mod tests {
         assert!(overridden
             .iter()
             .all(|track| track.section == SongSection::HighEnergy));
+    }
+
+    #[test]
+    fn compact_tracks_defaults_to_expanded_and_does_not_modify_tracks() {
+        let (mut app, _) = DrumViper::new();
+        let tracks = app.tracks.clone();
+
+        assert!(!app.compact_tracks);
+
+        let _ = app.update(Message::CompactTracksChanged(true));
+
+        assert!(app.compact_tracks);
+        assert_eq!(app.tracks.len(), tracks.len());
+        assert!(app
+            .tracks
+            .iter()
+            .zip(tracks.iter())
+            .all(
+                |(current, previous)| current.drum_type == previous.drum_type
+                    && current.enabled == previous.enabled
+                    && current.locked == previous.locked
+                    && current.probability == previous.probability
+            ));
     }
 }

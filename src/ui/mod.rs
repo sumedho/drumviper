@@ -19,10 +19,11 @@ pub fn root<'a>(
     global_style: Style,
     global_section: SongSection,
     generation_options: GenerationOptions,
+    compact_tracks: bool,
     status: &'a str,
     library: &'a SourcePatternLibrary,
 ) -> Element<'a, Message> {
-    let sidebar = track_sidebar::view(tracks, library);
+    let sidebar = track_sidebar::view(tracks, library, compact_tracks);
     let main = column![
         header_controls(
             length,

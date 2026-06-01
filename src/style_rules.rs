@@ -1,4 +1,4 @@
-use crate::models::{DrumType, SongSection, Style};
+use crate::models::{DrumType, MicrotimingPreset, SongSection, Style};
 use rand::Rng;
 
 #[derive(Debug, Clone, Copy)]
@@ -10,7 +10,7 @@ pub struct StyleRule {
     pub density: f32,
     pub ghost_chance: f32,
     pub roll_chance: f32,
-    pub swing_ticks: i32,
+    pub microtiming: MicrotimingPreset,
 }
 
 pub fn rule_for(style: Style, drum_type: DrumType, section: SongSection) -> StyleRule {
@@ -62,7 +62,7 @@ fn source_rule(drum_type: DrumType) -> StyleRule {
         density: 0.18,
         ghost_chance: 0.02,
         roll_chance: 0.01,
-        swing_ticks: 0,
+        microtiming: MicrotimingPreset::Straight,
     }
 }
 
@@ -87,7 +87,7 @@ fn hip_hop_rule(drum_type: DrumType) -> StyleRule {
         density: 0.35,
         ghost_chance: 0.12,
         roll_chance: 0.03,
-        swing_ticks: 18,
+        microtiming: MicrotimingPreset::LaidBack,
     }
 }
 
@@ -115,7 +115,7 @@ fn trap_rule(drum_type: DrumType) -> StyleRule {
         density: 0.42,
         ghost_chance: 0.08,
         roll_chance: 0.22,
-        swing_ticks: 10,
+        microtiming: MicrotimingPreset::Push,
     }
 }
 
@@ -142,7 +142,7 @@ fn drill_rule(drum_type: DrumType) -> StyleRule {
         density: 0.36,
         ghost_chance: 0.1,
         roll_chance: 0.26,
-        swing_ticks: 14,
+        microtiming: MicrotimingPreset::Broken,
     }
 }
 
@@ -170,7 +170,7 @@ fn house_rule(drum_type: DrumType) -> StyleRule {
         density: 0.32,
         ghost_chance: 0.04,
         roll_chance: 0.02,
-        swing_ticks: 8,
+        microtiming: MicrotimingPreset::Straight,
     }
 }
 
@@ -198,7 +198,7 @@ fn techno_rule(drum_type: DrumType) -> StyleRule {
         density: 0.4,
         ghost_chance: 0.07,
         roll_chance: 0.06,
-        swing_ticks: 0,
+        microtiming: MicrotimingPreset::Straight,
     }
 }
 
@@ -224,7 +224,7 @@ fn electro_rule(drum_type: DrumType) -> StyleRule {
         density: 0.34,
         ghost_chance: 0.05,
         roll_chance: 0.05,
-        swing_ticks: 4,
+        microtiming: MicrotimingPreset::Push,
     }
 }
 
@@ -251,7 +251,7 @@ fn uk_garage_rule(drum_type: DrumType) -> StyleRule {
         density: 0.36,
         ghost_chance: 0.16,
         roll_chance: 0.08,
-        swing_ticks: 24,
+        microtiming: MicrotimingPreset::Skank,
     }
 }
 
@@ -282,7 +282,7 @@ fn breakbeat_rule(drum_type: DrumType) -> StyleRule {
         density: 0.48,
         ghost_chance: 0.22,
         roll_chance: 0.12,
-        swing_ticks: 16,
+        microtiming: MicrotimingPreset::Shuffle,
     }
 }
 
@@ -309,7 +309,7 @@ fn jungle_dnb_rule(drum_type: DrumType) -> StyleRule {
         density: 0.58,
         ghost_chance: 0.28,
         roll_chance: 0.18,
-        swing_ticks: 6,
+        microtiming: MicrotimingPreset::Broken,
     }
 }
 
