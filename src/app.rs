@@ -1,3 +1,4 @@
+use crate::drag_export::{self, DragExportResult};
 use crate::generator;
 use crate::midi;
 use crate::models::{
@@ -6,8 +7,9 @@ use crate::models::{
 };
 use crate::patterns::SourcePatternLibrary;
 use crate::ui;
-use iced::{Element, Task, Theme};
+use iced::{Element, Subscription, Task, Theme};
 use rfd::FileDialog;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -16,10 +18,11 @@ pub enum Message {
     TrackProbabilityChanged(usize, u8),
     TrackDrumChanged(usize, DrumType),
     TrackStyleChanged(usize, Style),
+    TrackSelected(usize),
     RandomizeTrack(usize),
     RandomizeAll,
     LengthChanged(BarLength),
-    TempoChanged(u16),
+    TempoInputChanged(String),
     DensityChanged(u8),
     ComplexityChanged(u8),
     FillAmountChanged(u8),
@@ -27,8 +30,10 @@ pub enum Message {
     HumanizeChanged(u8),
     GlobalStyleChanged(Style),
     GlobalSectionChanged(SongSection),
-    CompactTracksChanged(bool),
     ExportMidi,
+    DragMidi,
+    DragMidiFinished(DragExportResult),
+    WindowOpened(iced::window::Id),
 }
 
 pub struct DrumViper {
@@ -37,10 +42,13 @@ pub struct DrumViper {
     pattern: Pattern,
     length: BarLength,
     tempo: u16,
+    tempo_input: String,
     global_style: Style,
     global_section: SongSection,
     generation_options: GenerationOptions,
-    compact_tracks: bool,
+    selected_track_index: usize,
+    window_id: Option<iced::window::Id>,
+    last_drag_midi_path: Option<PathBuf>,
     status: String,
 }
 
@@ -58,7 +66,7 @@ impl DrumViper {
         };
 
         let tracks: Vec<_> = (0..TRACK_COUNT).map(TrackConfig::default_for).collect();
-        let length = BarLength::Eight;
+        let length = BarLength::Four;
         let generation_options = GenerationOptions::default();
         let pattern = generator::generate_pattern(&library, &tracks, length, &generation_options);
 
@@ -69,10 +77,13 @@ impl DrumViper {
                 pattern,
                 length,
                 tempo: DEFAULT_TEMPO_BPM,
+                tempo_input: DEFAULT_TEMPO_BPM.to_string(),
                 global_style: Style::SourceLibrary,
                 global_section: SongSection::Verse,
                 generation_options,
-                compact_tracks: false,
+                selected_track_index: 0,
+                window_id: None,
+                last_drag_midi_path: None,
                 status,
             },
             Task::none(),
@@ -136,6 +147,11 @@ impl DrumViper {
                     }
                 }
             }
+            Message::TrackSelected(index) => {
+                if index < self.tracks.len() {
+                    self.selected_track_index = index;
+                }
+            }
             Message::RandomizeTrack(index) => {
                 self.regenerate_track(index);
             }
@@ -146,8 +162,8 @@ impl DrumViper {
                 self.length = length;
                 self.regenerate_all();
             }
-            Message::TempoChanged(tempo) => {
-                self.tempo = tempo;
+            Message::TempoInputChanged(value) => {
+                self.update_tempo_input(value);
             }
             Message::DensityChanged(density) => {
                 self.generation_options.density = density;
@@ -170,11 +186,17 @@ impl DrumViper {
             Message::GlobalSectionChanged(section) => {
                 self.global_section = section;
             }
-            Message::CompactTracksChanged(compact_tracks) => {
-                self.compact_tracks = compact_tracks;
-            }
             Message::ExportMidi => {
                 self.export_midi();
+            }
+            Message::DragMidi => {
+                return self.drag_midi();
+            }
+            Message::DragMidiFinished(result) => {
+                self.handle_drag_midi_result(result);
+            }
+            Message::WindowOpened(id) => {
+                self.window_id = Some(id);
             }
         }
 
@@ -187,17 +209,22 @@ impl DrumViper {
             &self.pattern,
             self.length,
             self.tempo,
+            &self.tempo_input,
             self.global_style,
             self.global_section,
             self.generation_options,
-            self.compact_tracks,
+            self.selected_track_index,
             &self.status,
             &self.library,
         )
     }
 
     pub fn theme(&self) -> Theme {
-        Theme::Dark
+        ui::theme()
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        iced::window::open_events().map(Message::WindowOpened)
     }
 
     fn regenerate_all(&mut self) {
@@ -232,7 +259,7 @@ impl DrumViper {
                 &self.generation_options,
             );
             self.status = format!(
-                "Randomized track {} using {} / {}.",
+                "Regenerated track {} using {} / {}.",
                 index + 1,
                 track.style,
                 self.global_section
@@ -261,6 +288,73 @@ impl DrumViper {
             }
             Err(error) => {
                 self.status = format!("MIDI export failed: {error}");
+            }
+        }
+    }
+
+    fn update_tempo_input(&mut self, value: String) {
+        if value.is_empty() {
+            self.tempo_input.clear();
+            return;
+        }
+
+        if !value.chars().all(|character| character.is_ascii_digit()) {
+            return;
+        }
+
+        self.tempo_input = value;
+
+        if let Ok(tempo) = self.tempo_input.parse::<u16>() {
+            if (crate::models::MIN_TEMPO_BPM..=crate::models::MAX_TEMPO_BPM).contains(&tempo) {
+                self.tempo = tempo;
+            }
+        }
+    }
+
+    fn drag_midi(&mut self) -> Task<Message> {
+        let path = match drag_export::write_drag_midi(&self.pattern, self.tempo) {
+            Ok(path) => path,
+            Err(error) => {
+                self.status = format!("MIDI drag export failed: {error}");
+                return Task::none();
+            }
+        };
+
+        self.last_drag_midi_path = Some(path.clone());
+
+        let Some(window_id) = self.window_id else {
+            self.status = format!(
+                "Prepared MIDI for drag at {}, but the app window is not ready.",
+                path.display()
+            );
+            return Task::none();
+        };
+
+        self.status = format!("Prepared MIDI drag file: {}.", path.display());
+
+        iced::window::run_with_handle(window_id, move |handle| {
+            match drag_export::begin_native_file_drag(handle, &path) {
+                Ok(()) => DragExportResult::Started(path),
+                Err(_) if !cfg!(target_os = "macos") => DragExportResult::Unavailable(path),
+                Err(error) => DragExportResult::Failed(error),
+            }
+        })
+        .map(Message::DragMidiFinished)
+    }
+
+    fn handle_drag_midi_result(&mut self, result: DragExportResult) {
+        match result {
+            DragExportResult::Started(path) => {
+                self.status = format!("Started MIDI drag from {}.", path.display());
+            }
+            DragExportResult::Unavailable(path) => {
+                self.status = format!(
+                    "Prepared MIDI at {}. Native drag is unavailable on this platform.",
+                    path.display()
+                );
+            }
+            DragExportResult::Failed(error) => {
+                self.status = format!("MIDI drag failed: {error}");
             }
         }
     }
@@ -309,25 +403,50 @@ mod tests {
     }
 
     #[test]
-    fn compact_tracks_defaults_to_expanded_and_does_not_modify_tracks() {
+    fn selected_track_defaults_to_first_track_and_ignores_invalid_indexes() {
         let (mut app, _) = DrumViper::new();
-        let tracks = app.tracks.clone();
 
-        assert!(!app.compact_tracks);
+        assert_eq!(app.selected_track_index, 0);
 
-        let _ = app.update(Message::CompactTracksChanged(true));
+        let _ = app.update(Message::TrackSelected(3));
 
-        assert!(app.compact_tracks);
-        assert_eq!(app.tracks.len(), tracks.len());
-        assert!(app
-            .tracks
-            .iter()
-            .zip(tracks.iter())
-            .all(
-                |(current, previous)| current.drum_type == previous.drum_type
-                    && current.enabled == previous.enabled
-                    && current.locked == previous.locked
-                    && current.probability == previous.probability
-            ));
+        assert_eq!(app.selected_track_index, 3);
+
+        let _ = app.update(Message::TrackSelected(TRACK_COUNT + 5));
+
+        assert_eq!(app.selected_track_index, 3);
+    }
+
+    #[test]
+    fn app_defaults_to_four_bar_patterns() {
+        let (app, _) = DrumViper::new();
+
+        assert_eq!(app.length, BarLength::Four);
+        assert_eq!(app.pattern.bars, 4);
+    }
+
+    #[test]
+    fn tempo_input_accepts_only_integer_bpm_values() {
+        let (mut app, _) = DrumViper::new();
+
+        let _ = app.update(Message::TempoInputChanged(String::from("140")));
+        assert_eq!(app.tempo, 140);
+        assert_eq!(app.tempo_input, "140");
+
+        let _ = app.update(Message::TempoInputChanged(String::from("1404")));
+        assert_eq!(app.tempo, 140);
+        assert_eq!(app.tempo_input, "1404");
+
+        let _ = app.update(Message::TempoInputChanged(String::from("14.5")));
+        assert_eq!(app.tempo, 140);
+        assert_eq!(app.tempo_input, "1404");
+
+        let _ = app.update(Message::TempoInputChanged(String::from("abc")));
+        assert_eq!(app.tempo, 140);
+        assert_eq!(app.tempo_input, "1404");
+
+        let _ = app.update(Message::TempoInputChanged(String::from("120")));
+        assert_eq!(app.tempo, 120);
+        assert_eq!(app.tempo_input, "120");
     }
 }

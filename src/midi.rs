@@ -1,7 +1,7 @@
 use crate::models::{DrumType, Pattern};
 use midly::num::{u15, u24, u28, u4, u7};
 use midly::{Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind};
-use std::fs::File;
+use std::fs;
 use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
@@ -15,6 +15,11 @@ pub fn export_midi(
     bpm: u16,
     path: impl AsRef<Path>,
 ) -> Result<(), MidiExportError> {
+    fs::write(path, export_midi_bytes(pattern, bpm)?)?;
+    Ok(())
+}
+
+pub fn export_midi_bytes(pattern: &Pattern, bpm: u16) -> Result<Vec<u8>, MidiExportError> {
     let mut events = Vec::new();
     let tempo = 60_000_000u32 / u32::from(bpm.max(1));
 
@@ -80,9 +85,9 @@ pub fn export_midi(
         tracks: vec![track],
     };
 
-    let mut file = File::create(path)?;
-    smf.write_std(&mut file)?;
-    Ok(())
+    let mut bytes = Vec::new();
+    smf.write_std(&mut bytes)?;
+    Ok(bytes)
 }
 
 pub fn note_for(drum_type: DrumType) -> Option<u8> {
@@ -156,6 +161,27 @@ mod tests {
         assert!(parsed.tracks[0]
             .iter()
             .any(|event| matches!(event.kind, TrackEventKind::Meta(MetaMessage::Tempo(_)))));
+    }
+
+    #[test]
+    fn exports_parseable_midi_bytes() {
+        let pattern = Pattern {
+            bars: 8,
+            ppq: PPQ,
+            hits: vec![Hit {
+                track: 0,
+                drum_type: DrumType::BassDrum,
+                tick: 0,
+                duration: DEFAULT_NOTE_DURATION_TICKS,
+                velocity: 96,
+                source: HitSource::StyleRule,
+            }],
+        };
+
+        let bytes = export_midi_bytes(&pattern, DEFAULT_TEMPO_BPM).expect("MIDI bytes export");
+        let parsed = Smf::parse(&bytes).expect("MIDI bytes parse");
+
+        assert_eq!(parsed.tracks.len(), 1);
     }
 
     #[test]

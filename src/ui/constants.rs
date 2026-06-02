@@ -3,8 +3,8 @@ use crate::models::TRACK_COUNT;
 pub const TRACK_SIDEBAR_WIDTH: f32 = 420.0;
 
 pub const PATTERN_LABEL_GUTTER: f32 = 132.0;
-pub const PATTERN_TOP_RULER: f32 = 38.0;
-pub const PATTERN_ROW_HEIGHT: f32 = 38.0;
+pub const PATTERN_TOP_RULER: f32 = 42.0;
+pub const PATTERN_ROW_HEIGHT: f32 = 44.0;
 pub const PATTERN_GRID_PADDING: f32 = 12.0;
 pub const PATTERN_PANEL_RADIUS: f32 = 7.0;
 pub const PATTERN_LABEL_INSET: f32 = 12.0;

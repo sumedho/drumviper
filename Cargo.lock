@@ -901,7 +901,11 @@ version = "0.1.0"
 dependencies = [
  "iced",
  "midly",
+ "objc2 0.5.2",
+ "objc2-app-kit",
+ "objc2-foundation 0.2.2",
  "rand",
+ "raw-window-handle",
  "rfd",
  "serde",
  "serde_json",

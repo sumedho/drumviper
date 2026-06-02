@@ -6,8 +6,9 @@ use iced::{Alignment, Element, Length};
 pub fn view(generation_options: GenerationOptions) -> Element<'static, Message> {
     row![
         slider_control(
+            "Density",
             format!(
-                "Density: {} {}",
+                "{} {}",
                 generation_options.density_label(),
                 generation_options.density
             ),
@@ -15,13 +16,15 @@ pub fn view(generation_options: GenerationOptions) -> Element<'static, Message> 
             Message::DensityChanged
         ),
         slider_control(
-            format!("Complexity: {}", generation_options.complexity),
+            "Complexity",
+            generation_options.complexity.to_string(),
             generation_options.complexity,
             Message::ComplexityChanged
         ),
         slider_control(
+            "Fill",
             format!(
-                "Fill: {} {}",
+                "{} {}",
                 fill_label(generation_options.fill_amount),
                 generation_options.fill_amount
             ),
@@ -29,12 +32,14 @@ pub fn view(generation_options: GenerationOptions) -> Element<'static, Message> 
             Message::FillAmountChanged
         ),
         slider_control(
-            format!("Groove: {}", generation_options.groove),
+            "Groove",
+            generation_options.groove.to_string(),
             generation_options.groove,
             Message::GrooveChanged
         ),
         slider_control(
-            format!("Humanize: {}", generation_options.humanize),
+            "Timing Humanize",
+            generation_options.humanize.to_string(),
             generation_options.humanize,
             Message::HumanizeChanged
         )
@@ -45,18 +50,20 @@ pub fn view(generation_options: GenerationOptions) -> Element<'static, Message> 
 }
 
 fn slider_control(
-    label: String,
+    label: &'static str,
+    value_label: String,
     value: u8,
     on_change: fn(u8) -> Message,
 ) -> Element<'static, Message> {
     row![
-        text(label).width(Length::Fixed(148.0)),
+        text(label).width(Length::Fixed(112.0)),
         slider(
             GenerationOptions::MIN..=GenerationOptions::MAX,
             value,
             on_change
         )
-        .width(Length::Fill)
+        .width(Length::Fill),
+        text(value_label).width(Length::Fixed(72.0))
     ]
     .spacing(8)
     .align_y(Alignment::Center)

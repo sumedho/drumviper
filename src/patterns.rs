@@ -7,6 +7,7 @@ const POCKET_OPERATIONS_JSON: &str = include_str!("../patterns/pocket_operations
 #[derive(Debug, Clone)]
 pub struct SourcePatternLibrary {
     by_instrument: HashMap<DrumType, Vec<SourceRow>>,
+    pattern_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -30,11 +31,13 @@ impl SourcePatternLibrary {
     pub fn empty() -> Self {
         Self {
             by_instrument: HashMap::new(),
+            pattern_count: 0,
         }
     }
 
     pub fn load_embedded() -> Result<Self, serde_json::Error> {
         let raw: RawLibrary = serde_json::from_str(POCKET_OPERATIONS_JSON)?;
+        let pattern_count = raw.patterns.len();
         let mut by_instrument: HashMap<DrumType, Vec<SourceRow>> = HashMap::new();
 
         for pattern in raw.patterns {
@@ -48,7 +51,10 @@ impl SourcePatternLibrary {
             }
         }
 
-        Ok(Self { by_instrument })
+        Ok(Self {
+            by_instrument,
+            pattern_count,
+        })
     }
 
     pub fn rows_for(&self, drum_type: DrumType) -> &[SourceRow] {
@@ -60,6 +66,10 @@ impl SourcePatternLibrary {
 
     pub fn instrument_count(&self, drum_type: DrumType) -> usize {
         self.rows_for(drum_type).len()
+    }
+
+    pub fn pattern_count(&self) -> usize {
+        self.pattern_count
     }
 }
 

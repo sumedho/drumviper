@@ -32,15 +32,17 @@ pub const MICROTIMING_ONE_DROP_OFFSET_TICKS: i32 = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BarLength {
+    Four,
     Eight,
     Sixteen,
 }
 
 impl BarLength {
-    pub const ALL: [Self; 2] = [Self::Eight, Self::Sixteen];
+    pub const ALL: [Self; 3] = [Self::Four, Self::Eight, Self::Sixteen];
 
     pub fn bars(self) -> u32 {
         match self {
+            Self::Four => 4,
             Self::Eight => 8,
             Self::Sixteen => 16,
         }
@@ -386,6 +388,15 @@ mod tests {
         assert_eq!(STEPS_PER_BAR, BEATS_PER_BAR * STEPS_PER_BEAT);
         assert_eq!(TICKS_PER_STEP, u32::from(PPQ) / STEPS_PER_BEAT);
         assert!(DEFAULT_NOTE_DURATION_TICKS < TICKS_PER_STEP);
+    }
+
+    #[test]
+    fn bar_length_options_include_four_bars_first() {
+        assert_eq!(
+            BarLength::ALL,
+            [BarLength::Four, BarLength::Eight, BarLength::Sixteen]
+        );
+        assert_eq!(BarLength::Four.bars(), 4);
     }
 }
 
