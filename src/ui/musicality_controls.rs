@@ -32,6 +32,12 @@ pub fn view(generation_options: GenerationOptions) -> Element<'static, Message> 
             Message::FillAmountChanged
         ),
         slider_control(
+            "Variation",
+            generation_options.variation.to_string(),
+            generation_options.variation,
+            Message::VariationChanged
+        ),
+        slider_control(
             "Groove",
             generation_options.groove.to_string(),
             generation_options.groove,

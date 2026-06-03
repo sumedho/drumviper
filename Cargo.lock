@@ -907,8 +907,6 @@ dependencies = [
  "rand",
  "raw-window-handle",
  "rfd",
- "serde",
- "serde_json",
  "thiserror 1.0.69",
 ]
 

@@ -115,7 +115,7 @@ fn selected_track_inspector<'a>(
         ),
         field(
             "Style",
-            pick_list(Vec::from(Style::ALL), Some(track.style), move |style| {
+            pick_list(Style::all(), Some(track.style), move |style| {
                 Message::TrackStyleChanged(index, style)
             })
             .width(Length::Fill)

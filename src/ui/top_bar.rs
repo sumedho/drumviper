@@ -43,7 +43,7 @@ pub fn settings_view<'a>(
     row![
         labeled_pick_list(
             "Style",
-            Vec::from(Style::ALL),
+            Style::all(),
             Some(global_style),
             Message::GlobalStyleChanged,
             185.0

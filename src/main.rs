@@ -5,6 +5,7 @@ mod microtiming;
 mod midi;
 mod models;
 mod patterns;
+mod source_patterns;
 mod style_rules;
 mod ui;
 

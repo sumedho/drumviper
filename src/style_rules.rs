@@ -15,7 +15,7 @@ pub struct StyleRule {
 
 pub fn rule_for(style: Style, drum_type: DrumType, section: SongSection) -> StyleRule {
     let mut rule = match style {
-        Style::SourceLibrary => source_rule(drum_type),
+        Style::SourceLibrary | Style::Source(_) => source_rule(drum_type),
         Style::HipHop => hip_hop_rule(drum_type),
         Style::Trap => trap_rule(drum_type),
         Style::Drill => drill_rule(drum_type),

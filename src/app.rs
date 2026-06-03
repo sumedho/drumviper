@@ -6,6 +6,7 @@ use crate::models::{
     DEFAULT_TEMPO_BPM, TRACK_COUNT,
 };
 use crate::patterns::SourcePatternLibrary;
+use crate::source_patterns::SourceSection;
 use crate::ui;
 use iced::{Element, Subscription, Task, Theme};
 use rfd::FileDialog;
@@ -26,6 +27,7 @@ pub enum Message {
     DensityChanged(u8),
     ComplexityChanged(u8),
     FillAmountChanged(u8),
+    VariationChanged(u8),
     GrooveChanged(u8),
     HumanizeChanged(u8),
     GlobalStyleChanged(Style),
@@ -78,7 +80,7 @@ impl DrumViper {
                 length,
                 tempo: DEFAULT_TEMPO_BPM,
                 tempo_input: DEFAULT_TEMPO_BPM.to_string(),
-                global_style: Style::SourceLibrary,
+                global_style: Style::Source(SourceSection::BasicPatterns),
                 global_section: SongSection::Verse,
                 generation_options,
                 selected_track_index: 0,
@@ -167,24 +169,35 @@ impl DrumViper {
             }
             Message::DensityChanged(density) => {
                 self.generation_options.density = density;
+                self.regenerate_all();
             }
             Message::ComplexityChanged(complexity) => {
                 self.generation_options.complexity = complexity;
+                self.regenerate_all();
             }
             Message::FillAmountChanged(fill_amount) => {
                 self.generation_options.fill_amount = fill_amount;
+                self.regenerate_all();
+            }
+            Message::VariationChanged(variation) => {
+                self.generation_options.variation = variation;
+                self.regenerate_all();
             }
             Message::GrooveChanged(groove) => {
                 self.generation_options.groove = groove;
+                self.regenerate_all();
             }
             Message::HumanizeChanged(humanize) => {
                 self.generation_options.humanize = humanize;
+                self.regenerate_all();
             }
             Message::GlobalStyleChanged(style) => {
                 self.global_style = style;
+                self.regenerate_all();
             }
             Message::GlobalSectionChanged(section) => {
                 self.global_section = section;
+                self.regenerate_all();
             }
             Message::ExportMidi => {
                 self.export_midi();
@@ -237,12 +250,13 @@ impl DrumViper {
             &self.generation_options,
         );
         self.status = format!(
-            "Generated {} bars using {} / {}, {} density, fill {}, track amounts.",
+            "Generated {} bars using {} / {}, {} density, fill {}, variation {}, track amounts.",
             self.length.bars(),
             self.global_style,
             self.global_section,
             self.generation_options.density_label(),
-            self.generation_options.fill_amount
+            self.generation_options.fill_amount,
+            self.generation_options.variation
         );
     }
 

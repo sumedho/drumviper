@@ -117,6 +117,7 @@ mod tests {
     fn shuffle_affects_even_subdivision_steps() {
         let options = GenerationOptions {
             groove: 100,
+            variation: 100,
             ..GenerationOptions::default()
         };
 
@@ -131,6 +132,7 @@ mod tests {
     fn broken_affects_odd_and_even_steps() {
         let options = GenerationOptions {
             groove: 100,
+            variation: 100,
             ..GenerationOptions::default()
         };
 

@@ -8,6 +8,7 @@ use crate::models::{
     STEPS_PER_BAR, TICKS_PER_STEP, TURNAROUND_VELOCITY_BOOST,
 };
 use crate::patterns::{SourcePatternLibrary, SourceRow};
+use crate::source_patterns::SourceSection;
 use crate::style_rules::{rule_for, should_add, velocity_for};
 use rand::{seq::SliceRandom, Rng};
 
@@ -33,7 +34,9 @@ pub fn generate_pattern(
         }
     }
 
-    apply_accents(&mut pattern.hits);
+    if options.variation > 0 {
+        apply_accents(&mut pattern.hits);
+    }
     apply_humanize(&mut pattern.hits, length.bars(), options, &mut rng);
     pattern.hits.sort_by_key(|hit| (hit.tick, hit.track));
     pattern
@@ -72,7 +75,9 @@ pub fn generate_pattern_preserving_locked(
         }
     }
 
-    apply_accents(&mut generated_hits);
+    if options.variation > 0 {
+        apply_accents(&mut generated_hits);
+    }
     apply_humanize(&mut generated_hits, length.bars(), options, &mut rng);
     let mut hits = locked_hits;
     hits.extend(generated_hits);
@@ -113,7 +118,9 @@ pub fn generate_single_track(
         ));
     }
 
-    apply_accents(&mut generated_hits);
+    if options.variation > 0 {
+        apply_accents(&mut generated_hits);
+    }
     apply_humanize(&mut generated_hits, length.bars(), options, &mut rng);
     hits.extend(generated_hits);
     hits.sort_by_key(|hit| (hit.tick, hit.track));
@@ -137,13 +144,26 @@ fn generate_track<R: Rng + ?Sized>(
         return Vec::new();
     }
 
+    if options.variation == 0 {
+        if let Some(hits) = generate_exact_source_track(library, track_index, track, bars, rng) {
+            return hits;
+        }
+    }
+
     let track_amount = track_amount_factor(track);
     let mut rule = rule_for(track.style, track.drum_type, track.section);
-    rule.density *= options.density_factor() * track_amount;
-    rule.ghost_chance *= options.complexity_factor() * track_amount;
+    let variation = options.variation_factor();
+    rule.density *= options.density_factor() * track_amount * variation;
+    rule.ghost_chance *= options.complexity_factor() * track_amount * variation;
     rule.roll_chance *= options.complexity_factor() * options.fill_factor() * track_amount;
     let mut hits = Vec::new();
-    let source_rows = pick_source_rows(library, track.drum_type, rule.preferred_sections, rng);
+    let source_rows = pick_source_rows(
+        library,
+        track.drum_type,
+        track.style.source_section(),
+        rule.preferred_sections,
+        rng,
+    );
     let source_keep_chance = source_keep_chance(options);
 
     for bar in 0..bars {
@@ -214,16 +234,24 @@ fn generate_track<R: Rng + ?Sized>(
 fn pick_source_rows<R: Rng + ?Sized>(
     library: &SourcePatternLibrary,
     drum_type: DrumType,
+    source_section: Option<SourceSection>,
     preferred_sections: &[&str],
     rng: &mut R,
 ) -> Vec<SourceRow> {
+    if let Some(section) = source_section {
+        let section_rows = library.rows_for_section(section, drum_type);
+        if !section_rows.is_empty() {
+            return section_rows.choose_multiple(rng, 6).cloned().collect();
+        }
+    }
+
     let rows = library.rows_for(drum_type);
     let preferred: Vec<_> = rows
         .iter()
         .filter(|row| {
             preferred_sections
                 .iter()
-                .any(|section| row.section.contains(section))
+                .any(|section| row.section.label().contains(section))
         })
         .cloned()
         .collect();
@@ -235,6 +263,48 @@ fn pick_source_rows<R: Rng + ?Sized>(
     };
 
     pool.choose_multiple(rng, 6).cloned().collect()
+}
+
+fn generate_exact_source_track<R: Rng + ?Sized>(
+    library: &SourcePatternLibrary,
+    track_index: usize,
+    track: &TrackConfig,
+    bars: u32,
+    rng: &mut R,
+) -> Option<Vec<Hit>> {
+    let rows = if let Some(section) = track.style.source_section() {
+        let section_rows = library.rows_for_section(section, track.drum_type);
+        if section_rows.is_empty() {
+            library.rows_for(track.drum_type)
+        } else {
+            section_rows
+        }
+    } else if track.style == crate::models::Style::SourceLibrary {
+        library.rows_for(track.drum_type)
+    } else {
+        return None;
+    };
+
+    let row = rows.choose(rng)?;
+    let mut hits = Vec::new();
+
+    for bar in 0..bars {
+        for step in &row.steps {
+            hits.push(make_hit(
+                track_index,
+                track.drum_type,
+                bar,
+                *step,
+                track.section,
+                HitSource::SourcePattern,
+                0,
+                0,
+                bars,
+            ));
+        }
+    }
+
+    Some(dedupe_hits(hits))
 }
 
 fn make_hit(
@@ -290,7 +360,11 @@ fn should_fill(
     options: &GenerationOptions,
     track_amount: f32,
 ) -> bool {
-    if options.fill_amount == 0 || options.complexity < 15 || track_amount <= 0.0 {
+    if options.variation == 0
+        || options.fill_amount == 0
+        || options.complexity < 15
+        || track_amount <= 0.0
+    {
         return false;
     }
 
@@ -628,6 +702,7 @@ mod tests {
         let mut rng = rand::rngs::StdRng::seed_from_u64(7);
         let options = GenerationOptions {
             humanize: 100,
+            variation: 100,
             ..GenerationOptions::default()
         };
 
@@ -648,6 +723,7 @@ mod tests {
                 density: 0,
                 complexity: 0,
                 fill_amount: 0,
+                variation: 0,
                 groove: 0,
                 humanize: 0,
             },
@@ -655,6 +731,7 @@ mod tests {
                 density: 100,
                 complexity: 100,
                 fill_amount: 100,
+                variation: 100,
                 groove: 100,
                 humanize: 100,
             },
@@ -706,10 +783,76 @@ mod tests {
     }
 
     #[test]
+    fn zero_variation_repeats_exact_source_section_row() {
+        let library = SourcePatternLibrary::load_embedded().expect("static source patterns load");
+        let track = TrackConfig {
+            drum_type: DrumType::BassDrum,
+            style: crate::models::Style::Source(
+                crate::source_patterns::SourceSection::StandardBreaks,
+            ),
+            section: SongSection::Verse,
+            ..TrackConfig::default_for(0)
+        };
+        let options = GenerationOptions {
+            fill_amount: 100,
+            humanize: 100,
+            variation: 0,
+            ..GenerationOptions::default()
+        };
+
+        let pattern = generate_single_track(
+            &library,
+            &Pattern::empty(4, PPQ),
+            0,
+            &track,
+            BarLength::Four,
+            &options,
+        );
+        let section_rows = library.rows_for_section(
+            crate::source_patterns::SourceSection::StandardBreaks,
+            DrumType::BassDrum,
+        );
+        let first_bar_steps: Vec<_> = pattern
+            .hits
+            .iter()
+            .filter(|hit| hit.track == 0 && hit.tick < STEPS_PER_BAR * TICKS_PER_STEP)
+            .map(|hit| (hit.tick / TICKS_PER_STEP + 1) as u8)
+            .collect();
+
+        assert!(section_rows
+            .iter()
+            .any(|row| row.steps.as_slice() == first_bar_steps.as_slice()));
+        assert!(pattern
+            .hits
+            .iter()
+            .all(|hit| hit.source == HitSource::SourcePattern));
+        assert!(!pattern
+            .hits
+            .iter()
+            .any(|hit| hit.source == HitSource::Ghost || hit.source == HitSource::Fill));
+
+        for bar in 0..4 {
+            let bar_start = bar * STEPS_PER_BAR * TICKS_PER_STEP;
+            let bar_steps: Vec<_> = pattern
+                .hits
+                .iter()
+                .filter(|hit| {
+                    hit.track == 0
+                        && hit.tick >= bar_start
+                        && hit.tick < bar_start + STEPS_PER_BAR * TICKS_PER_STEP
+                })
+                .map(|hit| ((hit.tick - bar_start) / TICKS_PER_STEP + 1) as u8)
+                .collect();
+            assert_eq!(bar_steps, first_bar_steps);
+        }
+    }
+
+    #[test]
     fn high_fill_amount_enables_turnaround_fills() {
         let options = GenerationOptions {
             fill_amount: 100,
             complexity: 100,
+            variation: 100,
             ..GenerationOptions::default()
         };
 

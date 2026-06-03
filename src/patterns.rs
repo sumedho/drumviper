@@ -1,58 +1,72 @@
 use crate::models::DrumType;
-use serde::Deserialize;
+use crate::source_patterns::SourceSection;
 use std::collections::HashMap;
-
-const POCKET_OPERATIONS_JSON: &str = include_str!("../patterns/pocket_operations_patterns.json");
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct SourcePatternLibrary {
     by_instrument: HashMap<DrumType, Vec<SourceRow>>,
+    by_section_instrument: HashMap<(SourceSection, DrumType), Vec<SourceRow>>,
     pattern_count: usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct SourceRow {
-    pub section: String,
+    pub section: SourceSection,
     pub steps: Vec<u8>,
 }
 
-#[derive(Debug, Deserialize)]
-struct RawLibrary {
-    patterns: Vec<RawPattern>,
+#[derive(Debug)]
+pub struct SourcePatternLoadError;
+
+impl fmt::Display for SourcePatternLoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("static source pattern data failed to load")
+    }
 }
 
-#[derive(Debug, Deserialize)]
-struct RawPattern {
-    section: String,
-    rows: HashMap<String, Vec<u8>>,
-}
+impl std::error::Error for SourcePatternLoadError {}
 
 impl SourcePatternLibrary {
     pub fn empty() -> Self {
         Self {
             by_instrument: HashMap::new(),
+            by_section_instrument: HashMap::new(),
             pattern_count: 0,
         }
     }
 
-    pub fn load_embedded() -> Result<Self, serde_json::Error> {
-        let raw: RawLibrary = serde_json::from_str(POCKET_OPERATIONS_JSON)?;
-        let pattern_count = raw.patterns.len();
+    pub fn load_embedded() -> Result<Self, SourcePatternLoadError> {
         let mut by_instrument: HashMap<DrumType, Vec<SourceRow>> = HashMap::new();
+        let mut by_section_instrument: HashMap<(SourceSection, DrumType), Vec<SourceRow>> =
+            HashMap::new();
+        let mut pattern_count = 0;
 
-        for pattern in raw.patterns {
-            for (code, steps) in pattern.rows {
-                if let Some(drum_type) = DrumType::from_code(&code) {
-                    by_instrument.entry(drum_type).or_default().push(SourceRow {
-                        section: pattern.section.clone(),
-                        steps,
-                    });
+        for section in SourceSection::ALL {
+            for pattern in section.patterns() {
+                pattern_count += 1;
+
+                for row in pattern.rows {
+                    let source_row = SourceRow {
+                        section,
+                        steps: row.steps.to_vec(),
+                    };
+
+                    by_instrument
+                        .entry(row.drum_type)
+                        .or_default()
+                        .push(source_row.clone());
+                    by_section_instrument
+                        .entry((section, row.drum_type))
+                        .or_default()
+                        .push(source_row);
                 }
             }
         }
 
         Ok(Self {
             by_instrument,
+            by_section_instrument,
             pattern_count,
         })
     }
@@ -60,6 +74,13 @@ impl SourcePatternLibrary {
     pub fn rows_for(&self, drum_type: DrumType) -> &[SourceRow] {
         self.by_instrument
             .get(&drum_type)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn rows_for_section(&self, section: SourceSection, drum_type: DrumType) -> &[SourceRow] {
+        self.by_section_instrument
+            .get(&(section, drum_type))
             .map(Vec::as_slice)
             .unwrap_or(&[])
     }
@@ -78,11 +99,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn loads_embedded_library_by_instrument() {
-        let library = SourcePatternLibrary::load_embedded().expect("embedded JSON parses");
+    fn loads_static_library_by_instrument() {
+        let library = SourcePatternLibrary::load_embedded().expect("static source patterns load");
 
+        assert_eq!(library.pattern_count(), 269);
         assert!(library.instrument_count(DrumType::BassDrum) > 200);
         assert!(library.instrument_count(DrumType::Snare) > 200);
         assert!(library.instrument_count(DrumType::ClosedHat) > 50);
+    }
+
+    #[test]
+    fn filters_rows_by_exact_source_section() {
+        let library = SourcePatternLibrary::load_embedded().expect("static source patterns load");
+        let rows = library.rows_for_section(SourceSection::StandardBreaks, DrumType::BassDrum);
+
+        assert_eq!(rows.len(), 4);
+        assert!(rows
+            .iter()
+            .all(|row| row.section == SourceSection::StandardBreaks));
     }
 }

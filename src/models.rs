@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::source_patterns::SourceSection;
+
 pub const PPQ: u16 = 480;
 pub const BEATS_PER_BAR: u32 = 4;
 pub const STEPS_PER_BEAT: u32 = 4;
@@ -88,25 +90,6 @@ impl DrumType {
         Self::ClosedHat,
         Self::Accent,
     ];
-
-    pub fn from_code(code: &str) -> Option<Self> {
-        match code {
-            "BD" => Some(Self::BassDrum),
-            "SN" => Some(Self::Snare),
-            "LT" => Some(Self::LowTom),
-            "RS" => Some(Self::Rimshot),
-            "MT" => Some(Self::MediumTom),
-            "CB" => Some(Self::Cowbell),
-            "HT" => Some(Self::HighTom),
-            "CY" => Some(Self::Cymbal),
-            "CL" | "HC" => Some(Self::HandClap),
-            "OH" => Some(Self::OpenHat),
-            "SH" => Some(Self::Shaker),
-            "CH" => Some(Self::ClosedHat),
-            "AC" => Some(Self::Accent),
-            _ => None,
-        }
-    }
 }
 
 impl fmt::Display for DrumType {
@@ -133,6 +116,7 @@ impl fmt::Display for DrumType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Style {
     SourceLibrary,
+    Source(SourceSection),
     HipHop,
     Trap,
     Drill,
@@ -145,24 +129,35 @@ pub enum Style {
 }
 
 impl Style {
-    pub const ALL: [Self; 10] = [
-        Self::SourceLibrary,
-        Self::HipHop,
-        Self::Trap,
-        Self::Drill,
-        Self::House,
-        Self::Techno,
-        Self::Electro,
-        Self::UkGarage,
-        Self::Breakbeat,
-        Self::JungleDnb,
-    ];
+    pub fn all() -> Vec<Self> {
+        let mut styles = vec![
+            Self::HipHop,
+            Self::Trap,
+            Self::Drill,
+            Self::House,
+            Self::Techno,
+            Self::Electro,
+            Self::UkGarage,
+            Self::Breakbeat,
+            Self::JungleDnb,
+        ];
+        styles.extend(SourceSection::ALL.into_iter().map(Self::Source));
+        styles
+    }
+
+    pub fn source_section(self) -> Option<SourceSection> {
+        match self {
+            Self::Source(section) => Some(section),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for Style {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let label = match self {
             Self::SourceLibrary => "Source Library",
+            Self::Source(section) => return write!(f, "{section}"),
             Self::HipHop => "Hip-Hop",
             Self::Trap => "Trap",
             Self::Drill => "Drill",
@@ -254,7 +249,7 @@ impl TrackConfig {
             locked: false,
             probability: 100,
             drum_type,
-            style: Style::SourceLibrary,
+            style: Style::Source(SourceSection::BasicPatterns),
             section: SongSection::Verse,
         }
     }
@@ -265,6 +260,7 @@ pub struct GenerationOptions {
     pub density: u8,
     pub complexity: u8,
     pub fill_amount: u8,
+    pub variation: u8,
     pub groove: u8,
     pub humanize: u8,
 }
@@ -275,6 +271,7 @@ impl Default for GenerationOptions {
             density: 50,
             complexity: 50,
             fill_amount: 50,
+            variation: 0,
             groove: 50,
             humanize: 15,
         }
@@ -303,11 +300,11 @@ impl GenerationOptions {
     }
 
     pub fn fill_factor(self) -> f32 {
-        factor(self.fill_amount, 0.0, 1.8)
+        factor(self.fill_amount, 0.0, 1.8) * self.variation_factor()
     }
 
     pub fn phrase_variation_factor(self) -> f32 {
-        factor(self.complexity, 0.0, 1.0)
+        factor(self.complexity, 0.0, 1.0) * self.variation_factor()
     }
 
     pub fn anchor_strength(self) -> f32 {
@@ -319,11 +316,15 @@ impl GenerationOptions {
     }
 
     pub fn groove_factor(self) -> f32 {
-        factor(self.groove, 0.0, 1.65)
+        factor(self.groove, 0.0, 1.65) * self.variation_factor()
     }
 
     pub fn humanize_factor(self) -> f32 {
-        f32::from(self.humanize.clamp(Self::MIN, Self::MAX)) / 100.0
+        f32::from(self.humanize.clamp(Self::MIN, Self::MAX)) / 100.0 * self.variation_factor()
+    }
+
+    pub fn variation_factor(self) -> f32 {
+        f32::from(self.variation.clamp(Self::MIN, Self::MAX)) / 100.0
     }
 }
 
@@ -343,8 +344,18 @@ mod tests {
         assert!(options.density_factor() > 0.0);
         assert_eq!(options.density_label(), "Balanced");
         assert!(options.complexity_factor() > 0.0);
-        assert!(options.groove_factor() > 0.0);
+        assert_eq!(options.variation, 0);
+        assert_eq!(options.groove_factor(), 0.0);
         assert!((0.0..=1.0).contains(&options.humanize_factor()));
+    }
+
+    #[test]
+    fn style_options_include_source_sections() {
+        let styles = Style::all();
+
+        assert!(!styles.contains(&Style::SourceLibrary));
+        assert!(styles.contains(&Style::Source(SourceSection::StandardBreaks)));
+        assert!(styles.contains(&Style::Source(SourceSection::DrumRolls)));
     }
 
     #[test]

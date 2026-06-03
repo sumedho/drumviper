@@ -240,6 +240,7 @@ mod tests {
             density: 100,
             complexity: 100,
             fill_amount: 100,
+            variation: 100,
             groove: 80,
             humanize: 100,
         };
